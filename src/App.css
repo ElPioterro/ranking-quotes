@@ -28,6 +28,7 @@ nav a {
 }
 nav a:hover {
   background-color: #4a505c;
+  color: #61dafb;
 }
 
 /* --- Style dla strony turnieju --- */
