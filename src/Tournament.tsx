@@ -9,25 +9,43 @@ interface TournamentPageProps {
   onVote: (winnerId: number, loserId: number) => void;
   onUndo: () => void;
   canUndo: boolean;
+  phase: "elimination" | "finals";
 }
 
-// Funkcja pomocnicza do losowania pary
-const getTwoRandomImages = (images: Image[]): [Image, Image] | null => {
+const getTwoSmartImages = (images: Image[]): [Image, Image] | null => {
   if (images.length < 2) return null;
-  const firstIndex = Math.floor(Math.random() * images.length);
-  let secondIndex;
-  do {
-    secondIndex = Math.floor(Math.random() * images.length);
-  } while (firstIndex === secondIndex);
 
-  return [images[firstIndex], images[secondIndex]];
+  // 1. Znajdź najmniejszą liczbę gier rozegranych w danej puli
+  const minGamesPlayed = Math.min(...images.map((p) => p.gamesPlayed));
+
+  // 2. Stwórz pulę kandydatów z najmniejszą liczbą gier
+  const leastPlayedPool = images.filter(
+    (p) => p.gamesPlayed === minGamesPlayed
+  );
+
+  // 3. Wybierz losowo pierwszego kandydata z tej puli
+  const firstImage =
+    leastPlayedPool[Math.floor(Math.random() * leastPlayedPool.length)];
+
+  // 4. Stwórz pulę potencjalnych przeciwników (wszyscy oprócz pierwszego)
+  const opponentPool = images.filter((p) => p.id !== firstImage.id);
+  if (opponentPool.length === 0) return null; // Zabezpieczenie na wypadek małej puli
+
+  // 5. Wybierz losowo drugiego kandydata
+  // (Uproszczona logika; można tu dodać sortowanie po ELO dla lepszych wyników)
+  const secondImage =
+    opponentPool[Math.floor(Math.random() * opponentPool.length)];
+
+  return [firstImage, secondImage];
 };
+
 // KLUCZOWA ZMIANA: Cały komponent jest teraz znacznie prostszy
 const TournamentPage: React.FC<TournamentPageProps> = ({
   images,
   onVote,
   onUndo,
   canUndo,
+  phase,
 }) => {
   const [pair, setPair] = useState<[Image, Image] | null>(null);
 
@@ -47,7 +65,7 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
   // Ten useEffect zarządza pojawianiem się nowej pary
   useEffect(() => {
     if (images.length > 0) {
-      const newPair = getTwoRandomImages(images);
+      const newPair = getTwoSmartImages(images);
       setPair(newPair);
       setAnimationState("entering"); // 1. Ustaw stan na 'wchodzenie'
 
