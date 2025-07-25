@@ -157,3 +157,67 @@ nav a:hover {
   display: block; /* Usuwa mały, niechciany margines pod obrazkiem */
   border-radius: 4px;
 }
+
+/* Dodaj na końcu pliku src/App.css */
+
+/* --- Style dla animacji w turnieju --- */
+
+/* 1. Kontener na obrazek - dodajemy transition do płynnych zmian */
+.image-card-container {
+  /* ... (twoje obecne style dla .image-card-container) ... */
+  transition: transform 0.4s ease-out, box-shadow 0.3s ease-in-out;
+}
+
+/* 2. Stan wejścia (skalowanie) */
+/* Stan początkowy - niewidoczny i mały */
+.image-card-container.entering {
+  transform: scale(0.5);
+  opacity: 0;
+}
+/* Stan końcowy - widoczny i w normalnym rozmiarze */
+.image-card-container.visible {
+  transform: scale(1);
+  opacity: 1;
+}
+
+/* 3. Stany po wyborze (poświaty) */
+.image-card-container.winner {
+  box-shadow: 0 0 35px 10px rgba(74, 222, 128, 0.7); /* Zielona poświata */
+  transform: scale(1.05); /* Lekkie powiększenie wygranego */
+}
+
+.image-card-container.loser {
+  box-shadow: 0 0 35px 10px rgba(239, 68, 68, 0.7); /* Czerwona poświata */
+}
+
+/* 4. Animacje "rzucania" dla przegranego */
+.image-card-container.throw-left {
+  animation: throw-left-animation 0.5s ease-in forwards;
+}
+
+.image-card-container.throw-right {
+  animation: throw-right-animation 0.5s ease-in forwards;
+}
+
+/* 5. Definicje klatek kluczowych (keyframes) */
+@keyframes throw-left-animation {
+  from {
+    transform: rotate(0deg) translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(-35deg) translateX(-150%);
+    opacity: 0;
+  }
+}
+
+@keyframes throw-right-animation {
+  from {
+    transform: rotate(0deg) translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: rotate(35deg) translateX(150%);
+    opacity: 0;
+  }
+}

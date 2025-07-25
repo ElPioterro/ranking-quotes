@@ -32,30 +32,59 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
   const [pair, setPair] = useState<[Image, Image] | null>(null);
 
   const [pairHistory, setPairHistory] = useState<[Image, Image][]>([]);
+
+  // NOWY STAN 1: Zarządza cyklem animacji: 'entering', 'idle', 'decided'
+  const [animationState, setAnimationState] = useState<
+    "entering" | "idle" | "decided"
+  >("entering");
+
+  // NOWY STAN 2: Przechowuje informację o tym, kto wygrał, a kto przegrał
+  const [selection, setSelection] = useState<{
+    winnerId: number | null;
+    loserId: number | null;
+  }>({ winnerId: null, loserId: null });
+
+  // Ten useEffect zarządza pojawianiem się nowej pary
   useEffect(() => {
     if (images.length > 0) {
-      setPair(getTwoRandomImages(images));
+      const newPair = getTwoRandomImages(images);
+      setPair(newPair);
+      setAnimationState("entering"); // 1. Ustaw stan na 'wchodzenie'
+
+      // 2. Po krótkiej chwili zmień stan na 'idle', aby animacja wejścia się zakończyła
+      const timer = setTimeout(() => {
+        setAnimationState("idle");
+      }, 100); // 100ms to wystarczająco dużo czasu na rozpoczęcie przejścia
+
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [images]); // Zmieniamy parę tylko, gdy zmieni się globalny stan `images` (po głosie lub cofnięciu)
 
-  if (!pair) {
-    return <div>Ładowanie...</div>;
-  }
-
-  const [image1, image2] = pair;
-
-  const handleVoteAndGetNewPair = (winner: Image, loser: Image) => {
-    if (!pair) return;
-
-    // 1. Zapisz aktualną parę do LOKALNEJ historii par.
+  const handleVote = (winner: Image, loser: Image) => {
+    if (animationState !== "idle" || !pair) return;
     setPairHistory((prev) => [...prev, pair]);
+    setSelection({ winnerId: winner.id, loserId: loser.id });
+    setAnimationState("decided");
 
-    // 2. Wywołaj funkcję z App.tsx, aby zaktualizować ELO.
-    onVote(winner.id, loser.id);
+    const voteTimer = setTimeout(() => {
+      // --- POCZĄTEK KLUCZOWEJ ZMIANY ---
 
-    // 3. Wylosuj i ustaw nową parę.
-    // Przekazujemy `images` bezpośrednio, bo stan zaktualizuje się dopiero przy następnym renderze.
-    setPair(getTwoRandomImages(images));
+      // 1. WYCZYŚĆ WIDOK!
+      // To jest najważniejsza część poprawki. Ustawiając parę na `null`,
+      // zmuszamy Reacta do usunięcia starych komponentów `ImageCard` z drzewa DOM.
+      // Widok staje się "czysty" i na chwilę pokaże "Wybieranie przeciwników...".
+      setPair(null);
+
+      // 2. DOPIERO TERAZ WYKONAJ GŁOS
+      // Ponieważ widok jest już pusty, ta operacja nie spowoduje wyścigu.
+      // Zmiana propsa `images` uruchomi `useEffect`, który na czystym widoku
+      // rozpocznie animację wejścia nowej pary.
+      onVote(winner.id, loser.id);
+
+      // --- KONIEC KLUCZOWEJ ZMIANY ---
+    }, 600);
+
+    return () => clearTimeout(voteTimer);
   };
 
   const handleUndoClick = () => {
@@ -73,21 +102,45 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
     setPairHistory((prev) => prev.slice(0, -1));
   };
 
+  if (!pair) {
+    return <div>Ładowanie...</div>;
+  }
+
+  const [image1, image2] = pair;
+
+  // Funkcja pomocnicza do budowania dynamicznych klas CSS
+  const getCardClassName = (cardId: number, position: "left" | "right") => {
+    let classes = "image-card-container";
+
+    if (animationState === "entering") classes += " entering";
+    if (animationState === "idle" || animationState === "decided")
+      classes += " visible";
+
+    if (animationState === "decided") {
+      if (cardId === selection.winnerId) classes += " winner";
+      if (cardId === selection.loserId) {
+        classes += " loser";
+        classes += position === "left" ? " throw-left" : " throw-right";
+      }
+    }
+    return classes;
+  };
+
   return (
     <div className="tournament-container">
       <h2>Który cytat jest lepszy? Kliknij, aby wybrać.</h2>
 
-      {/* Kontener flex, który ułoży obrazki obok siebie */}
       <div className="comparison-area">
-        {/* ZMIANA: Używamy nowej funkcji do obsługi głosowania */}
         <ImageCard
           imageUrl={image1.url}
-          onImageClick={() => handleVoteAndGetNewPair(image1, image2)}
+          onImageClick={() => handleVote(image1, image2)}
+          className={getCardClassName(image1.id, "left")}
         />
         <div className="vs-separator">VS</div>
         <ImageCard
           imageUrl={image2.url}
-          onImageClick={() => handleVoteAndGetNewPair(image2, image1)}
+          onImageClick={() => handleVote(image2, image1)}
+          className={getCardClassName(image2.id, "right")}
         />
       </div>
 
