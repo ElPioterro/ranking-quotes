@@ -1,35 +1,24 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// src/UndoButton.tsx
 
-function App() {
-  const [count, setCount] = useState(0)
+import React from "react";
 
-  return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+// 1. Zdefiniuj typy dla propsów, które komponent będzie przyjmował.
+//    Nazwy muszą pasować do tych używanych w TournamentPage.
+interface UndoButtonProps {
+  onUndo: () => void; // Oczekujemy funkcji o nazwie 'onUndo'
+  disabled: boolean; // Oczekujemy wartości boolean o nazwie 'disabled'
 }
 
-export default App
+// 2. Użyj zdefiniowanego interfejsu, aby otypować propsy komponentu.
+const UndoButton: React.FC<UndoButtonProps> = ({ onUndo, disabled }) => {
+  return (
+    // 3. Przypisz otrzymane propsy do odpowiednich atrybutów elementu <button>.
+    //    Ważne: atrybut HTML nazywa się `onClick`, więc przypisujemy do niego
+    //    naszą funkcję otrzymaną w propsie `onUndo`.
+    <button onClick={onUndo} disabled={disabled} style={{ marginTop: "1rem" }}>
+      Cofnij ostatni głos
+    </button>
+  );
+};
+
+export default UndoButton;
