@@ -1,5 +1,5 @@
 // src/Tournament.tsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react"; // POPRAWKA: Zaimportuj useRef
 import type { Image } from "./types";
 import ImageCard from "./ImageCard";
 import UndoButton from "./UndoButton";
@@ -9,74 +9,62 @@ interface TournamentPageProps {
   onVote: (winnerId: number, loserId: number) => void;
   onUndo: () => void;
   canUndo: boolean;
-  phase: "elimination" | "finals";
 }
 
 const getTwoSmartImages = (images: Image[]): [Image, Image] | null => {
   if (images.length < 2) return null;
-
-  // 1. Znajdź najmniejszą liczbę gier rozegranych w danej puli
   const minGamesPlayed = Math.min(...images.map((p) => p.gamesPlayed));
-
-  // 2. Stwórz pulę kandydatów z najmniejszą liczbą gier
   const leastPlayedPool = images.filter(
     (p) => p.gamesPlayed === minGamesPlayed
   );
-
-  // 3. Wybierz losowo pierwszego kandydata z tej puli
   const firstImage =
     leastPlayedPool[Math.floor(Math.random() * leastPlayedPool.length)];
-
-  // 4. Stwórz pulę potencjalnych przeciwników (wszyscy oprócz pierwszego)
   const opponentPool = images.filter((p) => p.id !== firstImage.id);
-  if (opponentPool.length === 0) return null; // Zabezpieczenie na wypadek małej puli
-
-  // 5. Wybierz losowo drugiego kandydata
-  // (Uproszczona logika; można tu dodać sortowanie po ELO dla lepszych wyników)
+  if (opponentPool.length === 0) return null;
   const secondImage =
     opponentPool[Math.floor(Math.random() * opponentPool.length)];
-
   return [firstImage, secondImage];
 };
 
-// KLUCZOWA ZMIANA: Cały komponent jest teraz znacznie prostszy
 const TournamentPage: React.FC<TournamentPageProps> = ({
   images,
   onVote,
   onUndo,
   canUndo,
-  phase,
 }) => {
   const [pair, setPair] = useState<[Image, Image] | null>(null);
-
   const [pairHistory, setPairHistory] = useState<[Image, Image][]>([]);
-
-  // NOWY STAN 1: Zarządza cyklem animacji: 'entering', 'idle', 'decided'
   const [animationState, setAnimationState] = useState<
     "entering" | "idle" | "decided"
   >("entering");
-
-  // NOWY STAN 2: Przechowuje informację o tym, kto wygrał, a kto przegrał
   const [selection, setSelection] = useState<{
     winnerId: number | null;
     loserId: number | null;
   }>({ winnerId: null, loserId: null });
 
-  // Ten useEffect zarządza pojawianiem się nowej pary
+  // POPRAWKA 1: Dodajemy ref, który będzie flagą informującą o operacji cofania.
+  // Używamy ref, ponieważ jego zmiana nie powoduje ponownego renderowania komponentu.
+  const isUndoing = useRef(false);
+
   useEffect(() => {
+    // POPRAWKA 2: Sprawdzamy flagę na początku efektu.
+    // Jeśli ten render był spowodowany operacją cofania, resetujemy flagę i przerywamy działanie efektu,
+    // aby nie wylosował on nowej pary.
+    if (isUndoing.current) {
+      isUndoing.current = false;
+      return;
+    }
+
     if (images.length > 0) {
       const newPair = getTwoSmartImages(images);
       setPair(newPair);
-      setAnimationState("entering"); // 1. Ustaw stan na 'wchodzenie'
-
-      // 2. Po krótkiej chwili zmień stan na 'idle', aby animacja wejścia się zakończyła
+      setAnimationState("entering");
       const timer = setTimeout(() => {
         setAnimationState("idle");
-      }, 100); // 100ms to wystarczająco dużo czasu na rozpoczęcie przejścia
-
+      }, 100);
       return () => clearTimeout(timer);
     }
-  }, [images]); // Zmieniamy parę tylko, gdy zmieni się globalny stan `images` (po głosie lub cofnięciu)
+  }, [images]); // Zależność od `images` pozostaje bez zmian.
 
   const handleVote = (winner: Image, loser: Image) => {
     if (animationState !== "idle" || !pair) return;
@@ -85,55 +73,49 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
     setAnimationState("decided");
 
     const voteTimer = setTimeout(() => {
-      // --- POCZĄTEK KLUCZOWEJ ZMIANY ---
-
-      // 1. WYCZYŚĆ WIDOK!
-      // To jest najważniejsza część poprawki. Ustawiając parę na `null`,
-      // zmuszamy Reacta do usunięcia starych komponentów `ImageCard` z drzewa DOM.
-      // Widok staje się "czysty" i na chwilę pokaże "Wybieranie przeciwników...".
       setPair(null);
-
-      // 2. DOPIERO TERAZ WYKONAJ GŁOS
-      // Ponieważ widok jest już pusty, ta operacja nie spowoduje wyścigu.
-      // Zmiana propsa `images` uruchomi `useEffect`, który na czystym widoku
-      // rozpocznie animację wejścia nowej pary.
       onVote(winner.id, loser.id);
-
-      // --- KONIEC KLUCZOWEJ ZMIANY ---
     }, 600);
 
     return () => clearTimeout(voteTimer);
   };
 
+  // POPRAWKA 3: Całkowicie nowa logika dla `handleUndoClick`.
   const handleUndoClick = () => {
-    // Sprawdź, czy jest co cofać
     if (pairHistory.length === 0) return;
 
-    // 1. Wywołaj globalną funkcję onUndo, aby przywrócić rankingi ELO.
-    onUndo();
+    // 1. Ustaw flagę `isUndoing` na `true`. To poinformuje nadchodzący `useEffect`, aby nic nie robił.
+    isUndoing.current = true;
 
     // 2. Pobierz ostatnią parę z lokalnej historii.
     const lastPair = pairHistory[pairHistory.length - 1];
+
+    // 3. Natychmiast przywróć poprzednią parę do widoku.
     setPair(lastPair);
 
-    // 3. Usuń ostatnią parę z lokalnej historii.
+    // 4. Zresetuj stan animacji, aby para nie była oznaczona jako "wygrany/przegrany".
+    setAnimationState("idle");
+    setSelection({ winnerId: null, loserId: null });
+
+    // 5. Usuń ostatnią parę z lokalnej historii.
     setPairHistory((prev) => prev.slice(0, -1));
+
+    // 6. Na samym końcu wywołaj globalną funkcję onUndo. Spowoduje to re-render z poprzednim
+    // stanem `images`, ale nasz `useEffect` zostanie zablokowany przez flagę `isUndoing`.
+    onUndo();
   };
 
   if (!pair) {
-    return <div>Ładowanie...</div>;
+    return <div>Wybieranie przeciwników...</div>;
   }
 
   const [image1, image2] = pair;
 
-  // Funkcja pomocnicza do budowania dynamicznych klas CSS
   const getCardClassName = (cardId: number, position: "left" | "right") => {
     let classes = "image-card-container";
-
     if (animationState === "entering") classes += " entering";
     if (animationState === "idle" || animationState === "decided")
       classes += " visible";
-
     if (animationState === "decided") {
       if (cardId === selection.winnerId) classes += " winner";
       if (cardId === selection.loserId) {
@@ -147,7 +129,6 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
   return (
     <div className="tournament-container">
       <h2>Który cytat jest lepszy? Kliknij, aby wybrać.</h2>
-
       <div className="comparison-area">
         <ImageCard
           imageUrl={image1.url}
@@ -161,7 +142,6 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
           className={getCardClassName(image2.id, "right")}
         />
       </div>
-
       <div className="undo-area">
         <UndoButton
           onUndo={handleUndoClick}
@@ -171,4 +151,5 @@ const TournamentPage: React.FC<TournamentPageProps> = ({
     </div>
   );
 };
+
 export default TournamentPage;

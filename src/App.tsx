@@ -190,7 +190,6 @@ function App() {
                   onVote={handleVote}
                   onUndo={handleUndo}
                   canUndo={history.length > 0}
-                  phase={currentPhase}
                 />
               }
             />
